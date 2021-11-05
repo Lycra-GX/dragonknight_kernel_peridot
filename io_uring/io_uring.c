@@ -2526,6 +2526,14 @@ static void io_mem_free(void *ptr)
 		free_compound_page(page);
 }
 
+static void io_rings_free(struct io_ring_ctx *ctx)
+{
+	io_mem_free(ctx->rings);
+	io_mem_free(ctx->sq_sqes);
+	ctx->rings = NULL;
+	ctx->sq_sqes = NULL;
+}
+
 static void *io_mem_alloc(size_t size)
 {
 	gfp_t gfp = GFP_KERNEL_ACCOUNT | __GFP_ZERO | __GFP_NOWARN | __GFP_COMP;
@@ -3478,8 +3486,7 @@ static __cold int io_allocate_scq_urings(struct io_ring_ctx *ctx,
 
 	ptr = io_mem_alloc(size);
 	if (IS_ERR(ptr)) {
-		io_mem_free(ctx->rings);
-		ctx->rings = NULL;
+		io_rings_free(ctx);
 		return PTR_ERR(ptr);
 	}
 
