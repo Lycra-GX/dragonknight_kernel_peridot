@@ -2990,29 +2990,17 @@ unlock:
 	f2fs_up_read(&SM_I(sbi)->curseg_lock);
 }
 
-static void __allocate_new_segment(struct f2fs_sb_info *sbi, int type,
-						bool new_sec, bool force)
+static void __allocate_new_section(struct f2fs_sb_info *sbi,
+						int type, bool force)
 {
-	struct curseg_info *curseg = CURSEG_I(sbi, type);
-	unsigned int old_segno;
-
-	if (!force && curseg->inited &&
-	    !curseg->next_blkoff &&
-	    !get_valid_blocks(sbi, curseg->segno, new_sec) &&
-	    !get_ckpt_valid_blocks(sbi, curseg->segno, new_sec))
-		return;
-
-	old_segno = curseg->segno;
-	new_curseg(sbi, type, true);
-	stat_inc_seg_type(sbi, curseg);
-	locate_dirty_segment(sbi, old_segno);
+	__allocate_new_segment(sbi, type, true, force);
 }
 
 void f2fs_allocate_new_section(struct f2fs_sb_info *sbi, int type, bool force)
 {
 	f2fs_down_read(&SM_I(sbi)->curseg_lock);
 	down_write(&SIT_I(sbi)->sentry_lock);
-	__allocate_new_segment(sbi, type, true, force);
+	__allocate_new_section(sbi, type, force);
 	up_write(&SIT_I(sbi)->sentry_lock);
 	f2fs_up_read(&SM_I(sbi)->curseg_lock);
 }
@@ -3375,21 +3363,12 @@ void f2fs_allocate_data_block(struct f2fs_sb_info *sbi, struct page *page,
 	update_sit_entry(sbi, *new_blkaddr, 1);
 	update_sit_entry(sbi, old_blkaddr, -1);
 
-	/*
-	 * If the current segment is full, flush it out and replace it with a
-	 * new segment.
-	 */
-	if (segment_full) {
-		if (from_gc) {
+	if (!__has_curseg_space(sbi, curseg)) {
+		if (from_gc)
 			get_atssr_segment(sbi, type, se->type,
 						AT_SSR, se->mtime);
-		} else {
-			if (need_new_seg(sbi, type))
-				new_curseg(sbi, type, false);
-			else
-				change_curseg(sbi, type);
-			stat_inc_seg_type(sbi, curseg);
-		}
+		else
+			allocate_segment_by_default(sbi, type, false);
 	}
 	/*
 	 * segment dirty status should be updated after segment allocation,
