@@ -3396,7 +3396,7 @@ void f2fs_allocate_data_block(struct f2fs_sb_info *sbi, struct page *page,
 			if (need_new_seg(sbi, type))
 				new_curseg(sbi, type, false);
 			else
-				change_curseg(sbi, type, true);
+				change_curseg(sbi, type);
 			stat_inc_seg_type(sbi, curseg);
 		}
 	}
