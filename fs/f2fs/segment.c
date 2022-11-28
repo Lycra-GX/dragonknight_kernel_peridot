@@ -2990,6 +2990,28 @@ unlock:
 	f2fs_up_read(&SM_I(sbi)->curseg_lock);
 }
 
+static void __allocate_new_segment(struct f2fs_sb_info *sbi, int type,
+						bool new_sec, bool force)
+{
+	struct curseg_info *curseg = CURSEG_I(sbi, type);
+	unsigned int old_segno;
+
+	if (!curseg->inited)
+		goto alloc;
+
+	if (force || curseg->next_blkoff ||
+		get_valid_blocks(sbi, curseg->segno, new_sec))
+		goto alloc;
+
+	if (!get_ckpt_valid_blocks(sbi, curseg->segno, new_sec))
+		return;
+alloc:
+	old_segno = curseg->segno;
+	new_curseg(sbi, type, true);
+	stat_inc_seg_type(sbi, curseg);
+	locate_dirty_segment(sbi, old_segno);
+}
+
 static void __allocate_new_section(struct f2fs_sb_info *sbi,
 						int type, bool force)
 {
@@ -3364,11 +3386,19 @@ void f2fs_allocate_data_block(struct f2fs_sb_info *sbi, struct page *page,
 	update_sit_entry(sbi, old_blkaddr, -1);
 
 	if (!__has_curseg_space(sbi, curseg)) {
-		if (from_gc)
+		/*
+		 * Flush out current segment and replace it with new segment.
+		 */
+		if (from_gc) {
 			get_atssr_segment(sbi, type, se->type,
 						AT_SSR, se->mtime);
-		else
-			allocate_segment_by_default(sbi, type, false);
+		} else {
+			if (need_new_seg(sbi, type))
+				new_curseg(sbi, type, false);
+			else
+				change_curseg(sbi, type, true);
+			stat_inc_seg_type(sbi, curseg);
+		}
 	}
 	/*
 	 * segment dirty status should be updated after segment allocation,
