@@ -4475,7 +4475,7 @@ static void f2fs_trace_rw_file_path(struct kiocb *iocb, size_t count, int rw)
 	struct inode *inode = file_inode(iocb->ki_filp);
 	char *buf, *path;
 
-	buf = f2fs_getname(F2FS_I_SB(inode));
+	buf = f2fs_kmalloc(F2FS_I_SB(inode), PATH_MAX, GFP_KERNEL);
 	if (!buf)
 		return;
 	path = dentry_path_raw(file_dentry(iocb->ki_filp), buf, PATH_MAX);
@@ -4488,7 +4488,7 @@ static void f2fs_trace_rw_file_path(struct kiocb *iocb, size_t count, int rw)
 		trace_f2fs_dataread_start(inode, iocb->ki_pos, count,
 				current->pid, path, current->comm);
 free_buf:
-	f2fs_putname(buf);
+	kfree(buf);
 }
 
 static ssize_t f2fs_file_read_iter(struct kiocb *iocb, struct iov_iter *to)
