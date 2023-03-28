@@ -759,11 +759,22 @@ void drm_atomic_bridge_chain_pre_enable(struct drm_bridge *bridge,
 		if (iter->funcs->atomic_pre_enable) {
 			struct drm_bridge_state *old_bridge_state;
 
+<<<<<<< HEAD
 			old_bridge_state =
 				drm_atomic_get_old_bridge_state(old_state,
 								iter);
 			if (WARN_ON(!old_bridge_state))
 				return;
+=======
+				if (!next->pre_enable_prev_first) {
+					/* Found first bridge that does NOT
+					 * request prev to be enabled first
+					 */
+					limit = next;
+					break;
+				}
+			}
+>>>>>>> fc61bce6ec24 (drm/bridge: Fix improper bridge init order with pre_enable_prev_first)
 
 			iter->funcs->atomic_pre_enable(iter, old_bridge_state);
 		} else if (iter->funcs->pre_enable) {
