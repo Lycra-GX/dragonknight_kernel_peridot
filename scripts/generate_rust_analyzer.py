@@ -131,8 +131,10 @@ def generate_crates(srctree, objtree, sysroot_src, external_src, cfgs):
             name = path.name.replace(".rs", "")
 
             # Skip those that are not crate roots.
-            if not is_root_crate(path.parent / "Makefile", name) and \
-               not is_root_crate(path.parent / "Kbuild", name):
+            try:
+                if f"{name}.o" not in open(path.parent / "Makefile").read():
+                    continue
+            except FileNotFoundError:
                 continue
 
             logging.info("Adding %s", name)
