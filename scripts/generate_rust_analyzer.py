@@ -10,15 +10,7 @@ import os
 import pathlib
 import sys
 
-def args_crates_cfgs(cfgs):
-    crates_cfgs = {}
-    for cfg in cfgs:
-        crate, vals = cfg.split("=", 1)
-        crates_cfgs[crate] = vals.replace("--cfg", "").split()
-
-    return crates_cfgs
-
-def generate_crates(srctree, objtree, sysroot_src, external_src, cfgs):
+def generate_crates(srctree, objtree, sysroot_src, external_src):
     # Generate the configuration list.
     cfg = []
     with open(objtree / "include" / "generated" / "rustc_cfg") as fd:
@@ -131,10 +123,8 @@ def generate_crates(srctree, objtree, sysroot_src, external_src, cfgs):
             name = path.name.replace(".rs", "")
 
             # Skip those that are not crate roots.
-            try:
-                if f"{name}.o" not in open(path.parent / "Makefile").read():
-                    continue
-            except FileNotFoundError:
+            if not is_root_crate(path.parent / "Makefile", name) and \
+               not is_root_crate(path.parent / "Kbuild", name):
                 continue
 
             logging.info("Adding %s", name)
@@ -163,7 +153,11 @@ def main():
     )
 
     rust_project = {
+<<<<<<< HEAD
         "crates": generate_crates(args.srctree, args.objtree, args.sysroot_src, args.exttree, args.cfgs),
+=======
+        "crates": generate_crates(args.srctree, args.objtree, args.sysroot_src, args.exttree),
+>>>>>>> 88a96a6fb129 (scripts: `make rust-analyzer` for out-of-tree modules)
         "sysroot_src": str(args.sysroot_src),
     }
 
