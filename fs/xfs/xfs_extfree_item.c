@@ -350,10 +350,7 @@ xfs_trans_free_extent(
 	struct xfs_owner_info		oinfo = { };
 	struct xfs_mount		*mp = tp->t_mountp;
 	struct xfs_extent		*extp;
-	struct xfs_perag		*pag;
 	uint				next_extent;
-	xfs_agnumber_t			agno = XFS_FSB_TO_AGNO(mp,
-							xefi->xefi_startblock);
 	xfs_agblock_t			agbno = XFS_FSB_TO_AGBNO(mp,
 							xefi->xefi_startblock);
 	int				error;
@@ -364,14 +361,12 @@ xfs_trans_free_extent(
 	if (xefi->xefi_flags & XFS_EFI_BMBT_BLOCK)
 		oinfo.oi_flags |= XFS_OWNER_INFO_BMBT_BLOCK;
 
-	trace_xfs_bmap_free_deferred(tp->t_mountp, agno, 0, agbno,
-			xefi->xefi_blockcount);
+	trace_xfs_bmap_free_deferred(tp->t_mountp, xefi->xefi_pag->pag_agno, 0,
+			agbno, xefi->xefi_blockcount);
 
-	pag = xfs_perag_get(mp, agno);
-	error = __xfs_free_extent(tp, pag, agbno, xefi->xefi_blockcount,
-			&oinfo, xefi->xefi_agresv,
+	error = __xfs_free_extent(tp, xefi->xefi_pag, agbno,
+			xefi->xefi_blockcount, &oinfo, xefi->xefi_agresv,
 			xefi->xefi_flags & XFS_EFI_SKIP_DISCARD);
-	xfs_perag_put(pag);
 
 	/*
 	 * Mark the transaction dirty, even on error. This ensures the
@@ -499,6 +494,8 @@ xfs_extent_free_finish_item(
 	xefi = container_of(item, struct xfs_extent_free_item, xefi_list);
 
 	error = xfs_trans_free_extent(tp, EFD_ITEM(done), xefi);
+
+	xfs_extent_free_put_group(xefi);
 	kmem_cache_free(xfs_extfree_item_cache, xefi);
 	return error;
 }
@@ -519,11 +516,8 @@ xfs_extent_free_cancel_item(
 	struct xfs_extent_free_item	*xefi;
 
 	xefi = container_of(item, struct xfs_extent_free_item, xefi_list);
-<<<<<<< HEAD
 
 	xfs_extent_free_put_group(xefi);
-=======
->>>>>>> e0e440bfea45 (xfs: fix confusing xfs_extent_item variable names)
 	kmem_cache_free(xfs_extfree_item_cache, xefi);
 }
 
@@ -559,19 +553,11 @@ xfs_agfl_free_finish_item(
 
 	xefi = container_of(item, struct xfs_extent_free_item, xefi_list);
 	ASSERT(xefi->xefi_blockcount == 1);
-<<<<<<< HEAD
 	agbno = XFS_FSB_TO_AGBNO(mp, xefi->xefi_startblock);
 	oinfo.oi_owner = xefi->xefi_owner;
 
 	trace_xfs_agfl_free_deferred(mp, xefi->xefi_pag->pag_agno, 0, agbno,
 			xefi->xefi_blockcount);
-=======
-	agno = XFS_FSB_TO_AGNO(mp, xefi->xefi_startblock);
-	agbno = XFS_FSB_TO_AGBNO(mp, xefi->xefi_startblock);
-	oinfo.oi_owner = xefi->xefi_owner;
-
-	trace_xfs_agfl_free_deferred(mp, agno, 0, agbno, xefi->xefi_blockcount);
->>>>>>> e0e440bfea45 (xfs: fix confusing xfs_extent_item variable names)
 
 	error = xfs_alloc_read_agf(xefi->xefi_pag, tp, 0, &agbp);
 	if (!error)
@@ -595,10 +581,7 @@ xfs_agfl_free_finish_item(
 	extp->ext_len = xefi->xefi_blockcount;
 	efdp->efd_next_extent++;
 
-<<<<<<< HEAD
 	xfs_extent_free_put_group(xefi);
-=======
->>>>>>> e0e440bfea45 (xfs: fix confusing xfs_extent_item variable names)
 	kmem_cache_free(xfs_extfree_item_cache, xefi);
 	return error;
 }
@@ -672,7 +655,9 @@ xfs_efi_item_recover(
 		fake.xefi_startblock = extp->ext_start;
 		fake.xefi_blockcount = extp->ext_len;
 
+		xfs_extent_free_get_group(mp, &fake);
 		error = xfs_trans_free_extent(tp, efdp, &fake);
+		xfs_extent_free_put_group(&fake);
 		if (error == -EFSCORRUPTED)
 			XFS_CORRUPTION_ERROR(__func__, XFS_ERRLEVEL_LOW, mp,
 					extp, sizeof(*extp));
