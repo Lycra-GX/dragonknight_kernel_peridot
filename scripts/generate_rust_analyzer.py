@@ -10,7 +10,15 @@ import os
 import pathlib
 import sys
 
-def generate_crates(srctree, objtree, sysroot_src, external_src):
+def args_crates_cfgs(cfgs):
+    crates_cfgs = {}
+    for cfg in cfgs:
+        crate, vals = cfg.split("=", 1)
+        crates_cfgs[crate] = vals.replace("--cfg", "").split()
+
+    return crates_cfgs
+
+def generate_crates(srctree, objtree, sysroot_src, external_src, cfgs):
     # Generate the configuration list.
     cfg = []
     with open(objtree / "include" / "generated" / "rustc_cfg") as fd:
@@ -41,26 +49,14 @@ def generate_crates(srctree, objtree, sysroot_src, external_src):
             }
         })
 
-    def append_sysroot_crate(
-        display_name,
-        deps,
-        cfg=[],
-    ):
-        append_crate(
-            display_name,
-            sysroot_src / display_name / "src" / "lib.rs",
-            deps,
-            cfg,
-            is_workspace_member=False,
-        )
-
-    # NB: sysroot crates reexport items from one another so setting up our transitive dependencies
-    # here is important for ensuring that rust-analyzer can resolve symbols. The sources of truth
-    # for this dependency graph are `(sysroot_src / crate / "Cargo.toml" for crate in crates)`.
-    append_sysroot_crate("core", [], cfg=crates_cfgs.get("core", []))
-    append_sysroot_crate("alloc", ["core"])
-    append_sysroot_crate("std", ["alloc", "core"])
-    append_sysroot_crate("proc_macro", ["core", "std"])
+    # First, the ones in `rust/` since they are a bit special.
+    append_crate(
+        "core",
+        sysroot_src / "core" / "src" / "lib.rs",
+        [],
+        cfg=crates_cfgs.get("core", []),
+        is_workspace_member=False,
+    )
 
     append_crate(
         "compiler_builtins",
@@ -154,10 +150,14 @@ def main():
 
     rust_project = {
 <<<<<<< HEAD
+<<<<<<< HEAD
         "crates": generate_crates(args.srctree, args.objtree, args.sysroot_src, args.exttree, args.cfgs),
 =======
         "crates": generate_crates(args.srctree, args.objtree, args.sysroot_src, args.exttree),
 >>>>>>> 88a96a6fb129 (scripts: `make rust-analyzer` for out-of-tree modules)
+=======
+        "crates": generate_crates(args.srctree, args.objtree, args.sysroot_src, args.exttree, args.cfgs),
+>>>>>>> d7cfc1a42ff0 (scripts: generate_rust_analyzer: provide `cfg`s for `core` and `alloc`)
         "sysroot_src": str(args.sysroot_src),
     }
 
