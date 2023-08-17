@@ -665,9 +665,11 @@ static int tmc_etr_alloc_flat_buf(struct tmc_drvdata *drvdata,
 	if (!flat_buf)
 		return -ENOMEM;
 
-	flat_buf->sgt = dma_alloc_noncontiguous(real_dev, etr_buf->size,
-						DMA_FROM_DEVICE, GFP_KERNEL, 0);
-	if (!flat_buf->sgt) {
+	flat_buf->vaddr = dma_alloc_noncoherent(real_dev, etr_buf->size,
+						&flat_buf->daddr,
+						DMA_FROM_DEVICE,
+						GFP_KERNEL | __GFP_NOWARN);
+	if (!flat_buf->vaddr) {
 		kfree(flat_buf);
 		return -ENOMEM;
 	}
