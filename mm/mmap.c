@@ -530,6 +530,7 @@ inline int vma_expand(struct ma_state *mas, struct vm_area_struct *vma,
 	struct anon_vma *anon_vma = vma->anon_vma;
 	struct file *file = vma->vm_file;
 	bool remove_next = false;
+	struct vm_area_struct *anon_dup = NULL;
 
 	vma_start_write(vma);
 	if (next && (vma != next) && (end == next->vm_end)) {
@@ -544,6 +545,8 @@ inline int vma_expand(struct ma_state *mas, struct vm_area_struct *vma,
 			error = anon_vma_clone(vma, next);
 			if (error)
 				return error;
+
+			anon_dup = vma;
 		}
 	}
 
@@ -619,6 +622,9 @@ inline int vma_expand(struct ma_state *mas, struct vm_area_struct *vma,
 	return 0;
 
 nomem:
+	if (anon_dup)
+		unlink_anon_vmas(anon_dup);
+
 	return -ENOMEM;
 }
 
@@ -652,6 +658,7 @@ int __vma_adjust(struct vm_area_struct *vma, unsigned long start,
 	int remove_next = 0;
 	MA_STATE(mas, &mm->mm_mt, start, end - 1);
 	struct vm_area_struct *exporter = NULL, *importer = NULL;
+	struct vm_area_struct *anon_dup = NULL;
 
 	vma_start_write(vma);
 	if (next)
@@ -739,20 +746,17 @@ int __vma_adjust(struct vm_area_struct *vma, unsigned long start,
 			error = anon_vma_clone(importer, exporter);
 			if (error)
 				return error;
+
+			anon_dup = importer;
 		}
 	}
 
-	if (adjust_next < 0)
-		mas_set_range(&mas, next->vm_start + adjust_next,
-			      next->vm_end - 1);
-	else if (insert) {
-		vma_start_write(insert);
-		mas_set_range(&mas, insert->vm_start, insert->vm_end - 1);
-	}
+	if (mas_preallocate(&mas, vma, GFP_KERNEL)) {
+		if (anon_dup)
+			unlink_anon_vmas(anon_dup);
 
-
-	if (mas_preallocate(&mas, vma, GFP_KERNEL))
 		return -ENOMEM;
+	}
 
 	vma_adjust_trans_huge(orig_vma, start, end, adjust_next);
 	if (file) {
