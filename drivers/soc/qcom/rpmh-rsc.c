@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2016-2018, 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt) "%s " fmt, KBUILD_MODNAME
@@ -680,16 +680,7 @@ static int check_for_req_inflight(struct rsc_drv *drv, struct tcs_group *tcs,
 		for_each_set_bit(j, &curr_enabled, tcs->ncpt) {
 			addr = read_tcs_cmd(drv, drv->regs[RSC_DRV_CMD_ADDR], i, j);
 			for (k = 0; k < msg->num_cmds; k++) {
-			/*
-			 * Each RPMh VREG accelerator resource has 3 or 4 contiguous 4-byte
-			 * aligned addresses associated with it. Ignore the offset to check
-			 * for in-flight VREG requests.
-			 */
-				accl = ACCL_TYPE(msg->cmds[k].addr);
-				if (accl == HW_ACCL_VREG &&
-				    VREG_ADDR(addr) == VREG_ADDR(msg->cmds[k].addr))
-					return -EBUSY;
-				else if (addr == msg->cmds[k].addr)
+				if (cmd_db_match_resource_addr(msg->cmds[k].addr, addr))
 					return -EBUSY;
 			}
 		}
