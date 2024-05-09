@@ -757,7 +757,6 @@ static int claim_tcs_for_req(struct rsc_drv *drv, struct tcs_group *tcs,
  * rpmh_rsc_send_data() - Write / trigger active-only message.
  * @drv: The controller.
  * @msg: The data to be sent.
- * @ch:  Channel number
  *
  * NOTES:
  * - This is only used for "ACTIVE_ONLY" since the limitations of this
@@ -776,23 +775,18 @@ static int claim_tcs_for_req(struct rsc_drv *drv, struct tcs_group *tcs,
  *
  * Return: 0 on success, -EINVAL on error.
  */
-int rpmh_rsc_send_data(struct rsc_drv *drv, const struct tcs_request *msg, int ch)
+int rpmh_rsc_send_data(struct rsc_drv *drv, const struct tcs_request *msg)
 {
 	struct tcs_group *tcs;
 	int tcs_id;
-	unsigned long flags;
 
-	tcs = get_tcs_for_msg(drv, msg->state, ch);
+	might_sleep();
+
+	tcs = get_tcs_for_msg(drv, msg);
 	if (IS_ERR(tcs))
 		return PTR_ERR(tcs);
 
-	spin_lock_irqsave(&drv->lock, flags);
-
-	/* Controller is busy in 'solver' mode */
-	if (drv->in_solver_mode) {
-		spin_unlock_irqrestore(&drv->lock, flags);
-		return -EBUSY;
-	}
+	spin_lock_irq(&drv->lock);
 
 	/* Wait forever for a free tcs. It better be there eventually! */
 	wait_event_lock_irq(drv->tcs_wait,
@@ -801,20 +795,16 @@ int rpmh_rsc_send_data(struct rsc_drv *drv, const struct tcs_request *msg, int c
 
 	tcs->req[tcs_id - tcs->offset] = msg;
 	set_bit(tcs_id, drv->tcs_in_use);
-
-	/*
-	 * Clear previously programmed ACTIVE/WAKE commands in selected
-	 * repurposed TCS to avoid triggering them. tcs->slots will be
-	 * cleaned from rpmh_flush() by invoking rpmh_rsc_invalidate()
-	 */
-	write_tcs_reg_sync(drv, drv->regs[RSC_DRV_CMD_ENABLE], tcs_id, 0);
-	write_tcs_reg_sync(drv, drv->regs[RSC_DRV_CMD_WAIT_FOR_CMPL], tcs_id, 0);
-
-	if (msg->wait_for_compl || (msg->state == RPMH_ACTIVE_ONLY_STATE &&
-	    tcs->type != ACTIVE_TCS))
+	if (msg->state == RPMH_ACTIVE_ONLY_STATE && tcs->type != ACTIVE_TCS) {
+		/*
+		 * Clear previously programmed WAKE commands in selected
+		 * repurposed TCS to avoid triggering them. tcs->slots will be
+		 * cleaned from rpmh_flush() by invoking rpmh_rsc_invalidate()
+		 */
+		write_tcs_reg_sync(drv, RSC_DRV_CMD_ENABLE, tcs_id, 0);
 		enable_tcs_irq(drv, tcs_id, true);
-	else
-		enable_tcs_irq(drv, tcs_id, false);
+	}
+	spin_unlock_irq(&drv->lock);
 
 	/*
 	 * These two can be done after the lock is released because:
@@ -826,16 +816,6 @@ int rpmh_rsc_send_data(struct rsc_drv *drv, const struct tcs_request *msg, int c
 	 */
 	__tcs_buffer_write(drv, tcs_id, 0, msg);
 	__tcs_set_trigger(drv, tcs_id, true);
-	ipc_log_string(drv->ipc_log_ctx, "TCS trigger: m=%d wait_for_compl=%u",
-		       tcs_id, msg->wait_for_compl);
-
-	if (!msg->wait_for_compl)
-		clear_bit(tcs_id, drv->tcs_in_use);
-
-	spin_unlock_irqrestore(&drv->lock, flags);
-
-	if (!msg->wait_for_compl)
-		wake_up(&drv->tcs_wait);
 
 	return 0;
 }
