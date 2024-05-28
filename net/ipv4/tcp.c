@@ -4760,9 +4760,11 @@ int tcp_abort(struct sock *sk, int err)
 	local_bh_disable();
 	bh_lock_sock(sk);
 
-	if (tcp_need_reset(sk->sk_state))
-		tcp_send_active_reset(sk, GFP_ATOMIC);
-	tcp_done_with_error(sk, err);
+	if (!sock_flag(sk, SOCK_DEAD)) {
+		if (tcp_need_reset(sk->sk_state))
+			tcp_send_active_reset(sk, GFP_ATOMIC);
+		tcp_done_with_error(sk, err);
+	}
 
 	bh_unlock_sock(sk);
 	local_bh_enable();
