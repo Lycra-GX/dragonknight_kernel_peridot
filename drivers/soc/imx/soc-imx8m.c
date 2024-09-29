@@ -157,6 +157,10 @@ static int imx8mm_soc_revision(u32 *socrev, u64 *socuid)
 	iounmap(anatop_base);
 
 	return imx8mm_soc_uid(socuid);
+
+err_iomap:
+	of_node_put(np);
+	return ret;
 }
 
 static const struct imx8_soc_data imx8mq_soc_data = {
@@ -205,9 +209,7 @@ static void imx8m_unregister_cpufreq(void *data)
 static int imx8m_soc_probe(struct platform_device *pdev)
 {
 	struct soc_device_attribute *soc_dev_attr;
-	struct platform_device *cpufreq_dev;
 	const struct imx8_soc_data *data;
-	struct device *dev = &pdev->dev;
 	const struct of_device_id *id;
 	struct soc_device *soc_dev;
 	u32 soc_rev = 0;
