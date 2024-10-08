@@ -89,7 +89,8 @@ static struct erofs_dirent *find_target_dirent(struct erofs_qstr *name,
 static void *erofs_find_target_block(struct erofs_buf *target,
 		struct inode *dir, struct erofs_qstr *name, int *_ndirents)
 {
-	int head = 0, back = DIV_ROUND_UP(dir->i_size, EROFS_BLKSIZ) - 1;
+	unsigned int bsz = i_blocksize(dir);
+	int head = 0, back = erofs_iblks(dir) - 1;
 	unsigned int startprfx = 0, endprfx = 0;
 	void *candidate = ERR_PTR(-ENOENT);
 

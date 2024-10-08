@@ -637,17 +637,13 @@ static int z_erofs_fill_inode_lazy(struct inode *inode)
 		goto out_unlock;
 
 	pos = ALIGN(erofs_iloc(inode) + vi->inode_isize + vi->xattr_isize, 8);
-	kaddr = erofs_read_metabuf(&buf, sb, erofs_blknr(pos), EROFS_KMAP);
+	kaddr = erofs_read_metabuf(&buf, sb, erofs_blknr(sb, pos), EROFS_KMAP);
 	if (IS_ERR(kaddr)) {
 		err = PTR_ERR(kaddr);
 		goto out_unlock;
 	}
 
-<<<<<<< HEAD
 	h = kaddr + erofs_blkoff(sb, pos);
-=======
-	h = kaddr + erofs_blkoff(pos);
->>>>>>> 7b33d69a08b8 (erofs: get rid of z_erofs_do_map_blocks() forward declaration)
 	/*
 	 * if the highest bit of the 8-byte map header is set, the whole file
 	 * is stored in the packed inode. The rest bits keeps z_fragmentoff.
@@ -671,11 +667,7 @@ static int z_erofs_fill_inode_lazy(struct inode *inode)
 		goto out_put_metabuf;
 	}
 
-<<<<<<< HEAD
 	vi->z_logical_clusterbits = sb->s_blocksize_bits + (h->h_clusterbits & 7);
-=======
-	vi->z_logical_clusterbits = LOG_BLOCK_SIZE + (h->h_clusterbits & 7);
->>>>>>> 7b33d69a08b8 (erofs: get rid of z_erofs_do_map_blocks() forward declaration)
 	if (!erofs_sb_has_big_pcluster(EROFS_SB(sb)) &&
 	    vi->z_advise & (Z_EROFS_ADVISE_BIG_PCLUSTER_1 |
 			    Z_EROFS_ADVISE_BIG_PCLUSTER_2)) {
@@ -704,11 +696,7 @@ static int z_erofs_fill_inode_lazy(struct inode *inode)
 		erofs_put_metabuf(&map.buf);
 
 		if (!map.m_plen ||
-<<<<<<< HEAD
 		    erofs_blkoff(sb, map.m_pa) + map.m_plen > sb->s_blocksize) {
-=======
-		    erofs_blkoff(map.m_pa) + map.m_plen > EROFS_BLKSIZ) {
->>>>>>> 7b33d69a08b8 (erofs: get rid of z_erofs_do_map_blocks() forward declaration)
 			erofs_err(sb, "invalid tail-packing pclustersize %llu",
 				  map.m_plen);
 			err = -EFSCORRUPTED;
