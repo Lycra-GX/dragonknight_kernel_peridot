@@ -246,7 +246,7 @@ xfs_free_extent_later(
 	const struct xfs_owner_info	*oinfo,
 	enum xfs_ag_resv_type		type)
 {
-	return __xfs_free_extent_later(tp, bno, len, oinfo, type, false);
+	return __xfs_free_extent_later(tp, bno, len, oinfo, false);
 }
 
 
