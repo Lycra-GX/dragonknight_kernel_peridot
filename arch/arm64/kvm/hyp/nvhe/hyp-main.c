@@ -7,6 +7,7 @@
 #include <kvm/arm_hypercalls.h>
 
 #include <hyp/adjust_pc.h>
+#include <hyp/switch.h>
 
 #include <asm/pgtable-types.h>
 #include <asm/kvm_asm.h>
@@ -823,40 +824,37 @@ static struct kvm_vcpu *__get_host_hyp_vcpus(struct kvm_vcpu *arg,
 		__get_host_hyp_vcpus(__vcpu, hyp_vcpup);			\
 	})
 
+static bool is_vcpu_runnable(struct pkvm_hyp_vcpu *hyp_vcpu)
+{
+	return (!pkvm_hyp_vcpu_is_protected(hyp_vcpu) ||
+		hyp_vcpu->power_state == PSCI_0_2_AFFINITY_LEVEL_ON);
+}
+
 static void handle___kvm_vcpu_run(struct kvm_cpu_context *host_ctxt)
 {
 	struct pkvm_hyp_vcpu *hyp_vcpu;
 	struct kvm_vcpu *host_vcpu;
-	int ret;
+	int ret = ARM_EXCEPTION_IL;
 
 	host_vcpu = get_host_hyp_vcpus(host_ctxt, 1, &hyp_vcpu);
-	if (!host_vcpu) {
-		ret = -EINVAL;
+	if (!host_vcpu)
 		goto out;
-	}
 
 	if (unlikely(hyp_vcpu)) {
+		if (hyp_vcpu->power_state == PSCI_0_2_AFFINITY_LEVEL_ON_PENDING)
+			pkvm_reset_vcpu(hyp_vcpu);
+
+		if (unlikely(!is_vcpu_runnable(hyp_vcpu)))
+			goto out;
+
 		flush_hyp_vcpu(hyp_vcpu);
-
 		ret = __kvm_vcpu_run(&hyp_vcpu->vcpu);
-
 		sync_hyp_vcpu(hyp_vcpu, ret);
-
-		if (hyp_vcpu->vcpu.arch.fp_state == FP_STATE_GUEST_OWNED) {
-			/*
-			 * The guest has used the FP, trap all accesses
-			 * from the host (both FP and SVE).
-			 */
-			u64 reg = CPTR_EL2_TFP;
-
-			if (system_supports_sve())
-				reg |= CPTR_EL2_TZ;
-
-			sysreg_clear_set(cptr_el2, 0, reg);
-		}
 	} else {
 		/* The host is fully trusted, run its vCPU directly. */
+		fpsimd_lazy_switch_to_guest(kern_hyp_va(host_vcpu));
 		ret = __kvm_vcpu_run(host_vcpu);
+		fpsimd_lazy_switch_to_host(kern_hyp_va(host_vcpu));
 	}
 out:
 	cpu_reg(host_ctxt, 1) =  ret;
@@ -1409,10 +1407,13 @@ void handle_trap(struct kvm_cpu_context *host_ctxt)
 	case ESR_ELx_EC_SMC64:
 		handle_host_smc(host_ctxt);
 		break;
+<<<<<<< HEAD
 	case ESR_ELx_EC_FP_ASIMD:
 	case ESR_ELx_EC_SVE:
 		fpsimd_host_restore();
 		break;
+=======
+>>>>>>> 17c7f46efb26 (KVM: arm64: Eagerly switch ZCR_EL{1,2})
 	case ESR_ELx_EC_IABT_LOW:
 	case ESR_ELx_EC_DABT_LOW:
 		handle_host_mem_abort(host_ctxt);
